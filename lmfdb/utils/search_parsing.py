@@ -1226,7 +1226,7 @@ def input_string_to_poly(FF):
     except Exception:
         return None, F, FF
 
-def nf_string_to_label(FF):  # parse Q, Qsqrt2, Qsqrt-4, Qzeta5, etc
+def nf_string_to_label(FF):  # parse Q, Qsqrt2, Qsqrt-4, Qzeta5, Q(sqrt2,sqrt3), etc
     if FF in ["q", "Q"]:
         return "1.1.1.1"
     if FF.lower() in ["qi", "q(i)"]:
@@ -1243,25 +1243,49 @@ def nf_string_to_label(FF):  # parse Q, Qsqrt2, Qsqrt-4, Qzeta5, etc
             return F1
         raise SearchParsingError("%s does not define a number field in the database." % F, trim_msg_error=True)
 
+    def quadratic_label(d):
+        if d == 0:
+            raise SearchParsingError("After {0}, the remainder must be a nonzero integer.  Use {0}5 or {0}-11 for example.".format(FF[:5]))
+        if d == 1:
+            return "1.1.1.1"
+        if d % 4 in [2, 3]:
+            D = 4 * d
+        else:
+            D = d
+        absD = D.abs()
+        s = 0 if D < 0 else 2
+        return "2.%s.%s.1" % (s, str(absD))
+
     if F[0] == "q":
         if "(" in F and ")" in F:
             F = F.replace("(", "").replace(")", "")
+        if "," in F:
+            pieces = F[1:].split(",")
+            if len(pieces) == 2 and all(piece[:4] in ["sqrt", "root"] for piece in pieces):
+                try:
+                    ds = [integer_squarefree_part(ZZ(str(piece[4:]))) for piece in pieces]
+                except (TypeError, ValueError):
+                    ds = [0, 0]
+                if 0 in ds:
+                    raise SearchParsingError("After Q, each square root must contain a nonzero integer.  Use Qsqrt2,sqrt3 or Q(sqrt2,sqrt3), for example.")
+                if ds[0] == 1:
+                    return quadratic_label(ds[1])
+                if ds[1] == 1 or ds[0] == ds[1]:
+                    return quadratic_label(ds[0])
+                from lmfdb.number_fields.number_field import poly_to_field_label
+
+                x = PolynomialRing(QQ, 'x').gen()
+                pol = x**4 - 2 * (ds[0] + ds[1]) * x**2 + (ds[0] - ds[1])**2
+                label = poly_to_field_label(pol)
+                if label:
+                    return label
+                raise SearchParsingError("%s is not in the database." % FF)
         if F[1:5] in ["sqrt", "root"]:
             try:
                 d = integer_squarefree_part(ZZ(str(F[5:])))
             except (TypeError, ValueError):
                 d = 0
-            if d == 0:
-                raise SearchParsingError("After {0}, the remainder must be a nonzero integer.  Use {0}5 or {0}-11 for example.".format(FF[:5]))
-            if d == 1:
-                return "1.1.1.1"
-            if d % 4 in [2, 3]:
-                D = 4 * d
-            else:
-                D = d
-            absD = D.abs()
-            s = 0 if D < 0 else 2
-            return "2.%s.%s.1" % (s, str(absD))
+            return quadratic_label(d)
         if F[0:5] == "qzeta":
             if "_" in F:
                 F = F.replace("_", "")
