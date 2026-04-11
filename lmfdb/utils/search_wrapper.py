@@ -85,9 +85,9 @@ def multi_entry_jump_search(info, parse_entry, label_exists, index_endpoint, inp
     - ``index_endpoint`` -- the input to "url_for" which returns the index homepage for this section
     - ``input_key`` -- the dictionary key for the jump search box (default: "jump")
     - ``labels_key`` -- the dictionary key for the labels search query (default: "labels")
-    - ``sep`` -- A function used to separate out jump box input into separate entries
+    - ``sep`` -- A function used to separate out jump box input into separate entries (default: split_top_level_commas)
     - ``object_name`` -- The name of the objects in the database (e.g. "fields", "elliptic curves"). Used when flashing info or error messages.
-    - ``time_limit`` -- a time limit (in seconds) for the maximum amount of time this query should take
+    - ``time_limit`` -- a time limit (in seconds) for the maximum amount of time this query should take (default: 30)
     """
 
     jump_input = info.get(input_key, "")
