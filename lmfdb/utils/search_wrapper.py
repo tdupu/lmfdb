@@ -43,7 +43,7 @@ def use_split_ors(info, query, split_ors, offset, table):
 def multi_entry_jump_search(info, parse_entry, label_exists, index_endpoint, input_key="jump", labels_key="labels", 
                             sep=lambda x: re.split(",", x), object_name="records", timeout="30"):
     """
-    Generic handler for jump boxes that supports comma-separated input of various entries (labels/names/polynomials etc.).
+    Generic handler for jump boxes that supports comma-separated input of various entries (labels/names/polynomials/equations etc.).
 
     Returns ``None`` if there is at most one entry, allowing the caller's single-entry jump logic to run.
     Otherwise returns a redirect to a search page of the given labels.
@@ -62,13 +62,13 @@ def multi_entry_jump_search(info, parse_entry, label_exists, index_endpoint, inp
     """
 
     jump_input = info.get(input_key, "")
-    entries = [s.strip() for s in re.split(sep, jump_input) if s.strip()]
+    entries = [s.strip() for s in sep(jump_input) if s.strip()]
     if len(entries) <= 1:
         return None
 
-    # For each entry given in the comma-seperated jump box input, we attempt to parse the entry (whilst skipping over duplicates)
-    # If the user inputs a large of entries, this may take a long time (e.g. having to call polredabs for number fields)
-    # We start a timer and stop parsing entries if we've hit the time_limit (default: 30 seconds)
+    # For each entry given in the comma-seperated jump box input, we attempt to parse the entry using parse_entry (whilst skipping over duplicates)
+    # If the user inputs a large of entries, this may take a long time (e.g. for number fields, this might require calling polredabs on every entry)
+    # We start a timer and stop parsing entries if we've hit the specified time_limit (default: 30 seconds)
 
     labels, seen = [], set()
     not_parsed, not_found = 0, 0
@@ -79,6 +79,7 @@ def multi_entry_jump_search(info, parse_entry, label_exists, index_endpoint, inp
             flash_error("Query timed out after parsing the first %s entries in the input.", i)
             return redirect(url_for(index_endpoint))
 
+        # Attempt to parse entry
         try:
             label = parse_entry(entries[i])
         except (SearchParsingError, ValueError):
