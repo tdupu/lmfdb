@@ -83,34 +83,6 @@ def number_field_data(label):
     return Markup(nf_knowl_guts(label))
 
 
-def split_top_level_commas(text):
-    """
-    Split on commas that are not inside parentheses/brackets/braces.
-    Used when parsing number field jump box input for multiple entries
-    """
-    entries = []
-    chunk = []
-    depth = 0
-    for ch in text:
-        if ch in "([{":
-            depth += 1
-            chunk.append(ch)
-        elif ch in ")]}":
-            depth = max(depth - 1, 0)
-            chunk.append(ch)
-        elif ch == "," and depth == 0:
-            entry = "".join(chunk).strip()
-            if entry:
-                entries.append(entry)
-            chunk = []
-        else:
-            chunk.append(ch)
-
-    entry = "".join(chunk).strip()
-    if entry:
-        entries.append(entry)
-    return entries
-
 def nf_label_pretty(label):
     if len(label) <= 25:
         return label
@@ -854,7 +826,6 @@ def number_field_jump(info):
         label_exists=db.nf_fields.label_exists,
         index_endpoint=".number_field_render_webpage",
         object_name="number fields",
-        sep=split_top_level_commas,
     )
     if multi_jump is not None:
         return multi_jump
