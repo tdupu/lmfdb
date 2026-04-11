@@ -139,14 +139,14 @@ def multi_entry_jump_search(info, parse_entry, label_exists, index_endpoint, inp
 
 def parse_labels(info, query, table, labels_key="labels"):
     """
-    Parse a list of labels from the URL "?label=" query into a database query.
+    Parse a list of labels from the URL "?labels=" query into a database query.
     """
     labels_input = info.get(labels_key)
     if not labels_input or not hasattr(table, "_label_col"):
         return
 
     # Separate out labels from input, stripping whitespace and removing duplicates while preserving order
-    labels = [label for label in dict.fromkeys(label.strip() for label in labels_input.split(",")) if label]
+    labels = list(set(label.strip() for label in labels_input.split(",")))
     seen = set(labels)
     if not labels:
         return
