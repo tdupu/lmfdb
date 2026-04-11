@@ -116,7 +116,9 @@ def parse_labels(info, query, table, labels_key="labels"):
     if not labels_input or not hasattr(table, "_label_col"):
         return
 
-    labels = list(set(label.strip() for label in labels_input.split(",")))
+    # Separate out labels from input, stripping whitespace and removing duplicates while preserving order
+    labels = [label for label in dict.fromkeys(label.strip() for label in labels_input.split(",")) if label]
+    seen = set(labels)
     if not labels:
         return
 
