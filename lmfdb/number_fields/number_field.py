@@ -82,7 +82,6 @@ def group_character_table_data(n, t):
 def number_field_data(label):
     return Markup(nf_knowl_guts(label))
 
-
 def nf_label_pretty(label):
     if len(label) <= 25:
         return label
