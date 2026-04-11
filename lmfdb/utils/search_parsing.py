@@ -1226,12 +1226,75 @@ def input_string_to_poly(FF):
     except Exception:
         return None, F, FF
 
-def nf_string_to_label(FF):  # parse Q, Qsqrt2, Qsqrt-4, Qzeta5, Q(sqrt2+sqrt3), Qcbrt2, etc.
+
+def nf_string_to_min_poly(s):
+    """
+    Converts a string representing some algebraic number to its minimal polynomial
+    This function can be called recursively to support a wide range of possible input strings
+
+    Examples:
+    "sqrt5" gives x^2 - 5
+    "cbrt2" gives x^3 - 2
+    "sqrt2 + sqrt3" gives 
+    
+    """
+
+    # Simplify input string s
+    s = s.lower().strip().replace(' ', '')
+    # Strip away brackets
+    while s[0]=='(' and s[-1]==')':
+        s = s[1:-1]
+
+    # Case: number
+    if s.is_digit():
+        return [-ZZ(s), 1]
+
+    # Case: square root
+    if s[:4] in ["sqrt", "root"]:
+        if (s[4]=='(' and s[-1]==')') or s[4:].is_digit():
+            tmp = nf_string_to_min_poly(s[4:])
+            return [...]  # put 0s in between the coefficinets
+
+    # Case cube root
+    if s[:4] == "cbrt":
+        if (s[4]=='(' and s[-1]==')') or s[4:].is_digit():
+            tmp = nf_string_to_min_poly(s[4:])
+            return [...]  # put two 0s in between the coefficinets
+            
+    # Case: addition +
+    cases = s.split('+')
+    a1 = nf_string_to_min_poly(cases[0])
+    a2 = nf_string_to_mind_poly(cases[1])
+
+    # Now compute resultant Resx?(p(x),q(t-x)).
+
+
+    # Case product *
+    cases = s.split('*')
+
+
+    # Case: subtraction
+
+
+    # Case: division
+
+    
+    
+
+
+def nf_string_to_label(FF):  
+    """
+    Converts a number field nickname or polynomial to the corresponding LMFDB label
+    e.g. Q, Qsqrt2, Qsqrt-4, Qzeta5, Q(sqrt2+sqrt3), Qcbrt2, etc.
+    """
+    
+    # Check if the rationals Q or Q(i)
     if FF in ["q", "Q"]:
         return "1.1.1.1"
     if FF.lower() in ["qi", "q(i)"]:
         return "2.0.4.1"
 
+    # Check if polynomial
     F1, F, FF = input_string_to_poly(FF)
     if len(F) == 0:
         raise SearchParsingError("Entry for the field was left blank.  You need to enter a field label, field name, or a polynomial.")
@@ -1249,7 +1312,7 @@ def nf_string_to_label(FF):  # parse Q, Qsqrt2, Qsqrt-4, Qzeta5, Q(sqrt2+sqrt3),
             raise SearchParsingError("After {0}, the remainder must be a nonzero integer.  Use {0}5 or {0}-11 for example.".format(FF[:5]))
         if d == 1:
             return "1.1.1.1"
-        if d % 4 in [2, 3]:
+        if d%4 in [2, 3]:
             D = 4 * d
         else:
             D = d
@@ -1280,8 +1343,8 @@ def nf_string_to_label(FF):  # parse Q, Qsqrt2, Qsqrt-4, Qzeta5, Q(sqrt2+sqrt3),
             F = F.replace("(", "").replace(")", "")
 
             # Check for biquadratic field name
-            if "+" in F:
-                pieces = F[1:].split("+")
+            if "," in F:
+                pieces = F[1:].split(",")
                 if len(pieces) == 2 and all(piece[:4] in ["sqrt", "root"] for piece in pieces):
                     try:
                         ds = [integer_squarefree_part(ZZ(str(piece[4:]))) for piece in pieces]
