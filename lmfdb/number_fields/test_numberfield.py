@@ -43,6 +43,12 @@ class NumberFieldTest(LmfdbTest):
     def test_url_naturallabel(self):
         self.check_args('/NumberField/Qsqrt5', '0.481211825') # regulator
 
+    def test_url_biquadratic_naturallabel(self):
+        self.check_args('/NumberField/Q(sqrt(2),sqrt(3))', '4.4.2304.1')
+
+    def test_url_cubic_naturallabel(self):
+        self.check_args('/NumberField/Qcbrt2', '3.1.108.1')
+
     def test_arith_equiv(self):
         self.check_args('/NumberField/7.3.6431296.1', '7.3.6431296.2') # arith equiv field
 

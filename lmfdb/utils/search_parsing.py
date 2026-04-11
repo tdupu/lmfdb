@@ -1226,7 +1226,7 @@ def input_string_to_poly(FF):
     except Exception:
         return None, F, FF
 
-def nf_string_to_label(FF):  # parse Q, Qsqrt2, Qsqrt-4, Qzeta5, Q(sqrt2,sqrt3), etc
+def nf_string_to_label(FF):  # parse Q, Qsqrt2, Qsqrt-4, Qzeta5, Q(sqrt2,sqrt3), Qcbrt2, etc.
     if FF in ["q", "Q"]:
         return "1.1.1.1"
     if FF.lower() in ["qi", "q(i)"]:
@@ -1243,6 +1243,7 @@ def nf_string_to_label(FF):  # parse Q, Qsqrt2, Qsqrt-4, Qzeta5, Q(sqrt2,sqrt3),
             return F1
         raise SearchParsingError("%s does not define a number field in the database." % F, trim_msg_error=True)
 
+    # Returns LMFDB label for quadratic field Q(sqrt(d)) for squarefree d
     def quadratic_label(d):
         if d == 0:
             raise SearchParsingError("After {0}, the remainder must be a nonzero integer.  Use {0}5 or {0}-11 for example.".format(FF[:5]))
@@ -1280,6 +1281,22 @@ def nf_string_to_label(FF):  # parse Q, Qsqrt2, Qsqrt-4, Qzeta5, Q(sqrt2,sqrt3),
                 if label:
                     return label
                 raise SearchParsingError("%s is not in the database." % FF)
+        if F[1:5] == "cbrt":
+            try:
+                d = ZZ(str(F[5:]))
+            except (TypeError, ValueError):
+                d = 0
+            if d == 0:
+                raise SearchParsingError("After {0}, the remainder must be a nonzero integer.  Use {0}2 or {0}-11 for example.".format(FF[:5]))
+            if d.is_cube():
+                return "1.1.1.1"
+            from lmfdb.number_fields.number_field import poly_to_field_label
+
+            x = PolynomialRing(QQ, 'x').gen()
+            label = poly_to_field_label(x**3 - d)
+            if label:
+                return label
+            raise SearchParsingError("%s is not in the database." % FF)
         if F[1:5] in ["sqrt", "root"]:
             try:
                 d = integer_squarefree_part(ZZ(str(F[5:])))
