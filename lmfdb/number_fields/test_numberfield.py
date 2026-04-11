@@ -1,4 +1,5 @@
 from lmfdb.tests import LmfdbTest
+from lmfdb.utils.search_parsing import nf_string_to_label
 
 class NumberFieldTest(LmfdbTest):
     # All tests should pass
@@ -48,6 +49,15 @@ class NumberFieldTest(LmfdbTest):
 
     def test_url_cubic_naturallabel(self):
         self.check_args('/NumberField/Qcbrt2', '3.1.108.1')
+
+    def test_url_cubic_naturallabel_parenthesized(self):
+        self.assertEqual(nf_string_to_label('Q(cbrt(2))'), nf_string_to_label('Qcbrt2'))
+
+    def test_url_biquadratic_comma_naturallabel(self):
+        self.assertEqual(nf_string_to_label('Q(sqrt2,sqrt3)'), nf_string_to_label('Q(sqrt2+sqrt3)'))
+
+    def test_url_quartic_nested_radical_naturallabel(self):
+        self.assertEqual(nf_string_to_label('Q(sqrt(1+1*sqrt2))'), nf_string_to_label('x^4-2*x^2-1'))
 
     def test_arith_equiv(self):
         self.check_args('/NumberField/7.3.6431296.1', '7.3.6431296.2') # arith equiv field

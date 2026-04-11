@@ -1296,6 +1296,7 @@ def nf_string_to_label(FF):
 
     # Check if polynomial
     F1, F, FF = input_string_to_poly(FF)
+    F = F.replace(" ", "")
     if len(F) == 0:
         raise SearchParsingError("Entry for the field was left blank.  You need to enter a field label, field name, or a polynomial.")
     if F1 and len(str(F1.parent().gen())) == 1: # we only support single-letter variable names
@@ -1337,48 +1338,133 @@ def nf_string_to_label(FF):
                 return label
             raise SearchParsingError("%s is not in the database." % FF)
 
+    # Strip matching outer parentheses, preserving nested structure.
+    def strip_outer_parens(s):
+        while len(s) >= 2 and s[0] == "(" and s[-1] == ")":
+            depth = 0
+            wraps_all = True
+            for i, ch in enumerate(s):
+                if ch == "(":
+                    depth += 1
+                elif ch == ")":
+                    depth -= 1
+                if depth == 0 and i < len(s) - 1:
+                    wraps_all = False
+                    break
+            if wraps_all and depth == 0:
+                s = s[1:-1]
+            else:
+                break
+        return s
+
+    def parse_sqrt_argument(s):
+        s = strip_outer_parens(s)
+        if s[:4] not in ["sqrt", "root"]:
+            return None
+        arg = strip_outer_parens(s[4:])
+        try:
+            return integer_squarefree_part(ZZ(str(arg)))
+        except (TypeError, ValueError):
+            return None
+
+    def parse_cbrt_argument(s):
+        s = strip_outer_parens(s)
+        if s[:4] != "cbrt":
+            return None
+        arg = strip_outer_parens(s[4:])
+        try:
+            return ZZ(str(arg))
+        except (TypeError, ValueError):
+            return None
+
+    def parse_biquadratic_sqrt_sum(s):
+        s = strip_outer_parens(s)
+        m = re.match(
+            r"^(?:sqrt|root)(?:\(([+-]?\d+)\)|([+-]?\d+))([+-])(?:sqrt|root)(?:\(([+-]?\d+)\)|([+-]?\d+))$",
+            s,
+        )
+        if not m:
+            return None
+        d1 = m.group(1) if m.group(1) is not None else m.group(2)
+        d2 = m.group(4) if m.group(4) is not None else m.group(5)
+        try:
+            return [integer_squarefree_part(ZZ(str(d1))), integer_squarefree_part(ZZ(str(d2)))]
+        except (TypeError, ValueError):
+            return None
+
+    def biquadratic_label_from_ds(ds):
+        if 0 in ds:
+            raise SearchParsingError("After Q, each square root must contain a nonzero integer.  Use Q(sqrt2,sqrt3) for example.")
+        if ds[0] == 1:
+            return quadratic_label(ds[1])
+        if ds[1] == 1 or ds[0] == ds[1]:
+            return quadratic_label(ds[0])
+        from lmfdb.number_fields.number_field import poly_to_field_label
+
+        x = PolynomialRing(QQ, 'x').gen()
+        pol = x**4 - 2 * (ds[0] + ds[1]) * x**2 + (ds[0] - ds[1])**2
+        label = poly_to_field_label(pol)
+        if label:
+            return label
+        raise SearchParsingError("%s is not in the database." % FF)
+
+    def quartic_nonprimitive_label(s):
+        s = strip_outer_parens(s)
+        if s[:4] not in ["sqrt", "root"]:
+            return None
+        inner = strip_outer_parens(s[4:])
+        m = re.match(r"^([+-]?\d+)([+-])([+-]?\d+)\*(?:sqrt|root)(?:\(([+-]?\d+)\)|([+-]?\d+))$", inner)
+        if not m:
+            return None
+        A = ZZ(m.group(1))
+        B = ZZ(m.group(3))
+        if m.group(2) == "-":
+            B = -B
+        D = ZZ(m.group(4) if m.group(4) is not None else m.group(5))
+        if B == 0 or D == 0:
+            raise SearchParsingError("In Q(sqrt(A + B*sqrt(D))), B and D must be nonzero integers.")
+
+        from lmfdb.number_fields.number_field import poly_to_field_label
+
+        x = PolynomialRing(QQ, 'x').gen()
+        pol = x**4 - 2 * A * x**2 + (A**2 - B**2 * D)
+        label = poly_to_field_label(pol)
+        if label:
+            return label
+        raise SearchParsingError("%s is not in the database." % FF)
+
 
     if F[0] == "q":
-        if "(" in F and ")" in F:
-            F = F.replace("(", "").replace(")", "")
+        qpart = F[1:]
+        if len(qpart) > 0:
+            qpart = strip_outer_parens(qpart)
 
-            # Check for biquadratic field name
-            if "," in F:
-                pieces = F[1:].split(",")
-                if len(pieces) == 2 and all(piece[:4] in ["sqrt", "root"] for piece in pieces):
-                    try:
-                        ds = [integer_squarefree_part(ZZ(str(piece[4:]))) for piece in pieces]
-                    except (TypeError, ValueError):
-                        ds = [0, 0]
-                    if 0 in ds:
-                        raise SearchParsingError("After Q, each square root must contain a nonzero integer.  Use Q(sqrt2+sqrt3) for example.")
-                    if ds[0] == 1:
-                        return quadratic_label(ds[1])
-                    if ds[1] == 1 or ds[0] == ds[1]:
-                        return quadratic_label(ds[0])
-                    from lmfdb.number_fields.number_field import poly_to_field_label
+            # Check for biquadratic field name Q(sqrtA, sqrtB)
+            if "," in qpart:
+                pieces = qpart.split(",")
+                if len(pieces) == 2:
+                    ds = [parse_sqrt_argument(piece) for piece in pieces]
+                    if all(d is not None for d in ds):
+                        return biquadratic_label_from_ds(ds)
 
-                    x = PolynomialRing(QQ, 'x').gen()
-                    pol = x**4 - 2 * (ds[0] + ds[1]) * x**2 + (ds[0] - ds[1])**2
-                    label = poly_to_field_label(pol)
-                    if label:
-                        return label
-                    raise SearchParsingError("%s is not in the database." % FF)
+            # Check for biquadratic field name Q(sqrtA+sqrtB)
+            ds = parse_biquadratic_sqrt_sum(qpart)
+            if ds is not None:
+                return biquadratic_label_from_ds(ds)
+
+            # Check for quartic non-primitive field name Q(sqrt(A + B*sqrt(D)))
+            label = quartic_nonprimitive_label(qpart)
+            if label:
+                return label
 
         # Check for quadratic field name
-        if F[1:5] in ["sqrt", "root"]:
-            try:
-                d = integer_squarefree_part(ZZ(str(F[5:])))
-            except (TypeError, ValueError):
-                d = 0
+        d = parse_sqrt_argument(qpart)
+        if d is not None:
             return quadratic_label(d)
 
         # Check for cubic field name
-        if F[1:5] == "cbrt":
-            try:
-                d = ZZ(str(F[5:]))
-            except (TypeError, ValueError):
-                d = 0
+        d = parse_cbrt_argument(qpart)
+        if d is not None:
             return cubic_label(d)
 
         # Check if cyclotomic field (or its maximal real subfield)
