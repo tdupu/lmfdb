@@ -1247,29 +1247,11 @@ def _strip_matching_outer_parens(s):
     return s
 
 
-def nf_string_to_min_poly(s):
+def _nf_string_to_qqbar(s):
+    """Evaluate a supported algebraic expression into QQbar.
+
+    Supports arithmetic on integers, sqrt/root/cbrt radicals, i, phi, and zeta roots of unity.
     """
-    Return the minimal polynomial over QQ of an algebraic expression.
-
-    Supported syntax:
-    - binary operators: +, -, *, /
-    - unary operators: +, -
-    - functions: sqrt(...), root(...), cbrt(...)
-    - shorthand radicals: sqrt5, root-3, cbrt7
-    - nested parentheses and combinations of the above
-
-    The expression is parsed with a restricted Python AST and then evaluated in QQbar.
-    The result is returned as a polynomial in QQ[x].
-
-    Examples:
-    - sqrt5 -> x^2 - 5
-    - cbrt2 -> x^3 - 2
-    - sqrt2 + sqrt3 -> x^4 - 10*x^2 + 1
-    """
-
-    # Parse and evaluate algebraic expressions recursively using a restricted AST.
-    # Supported operators: +, -, *, / and unary +/-.
-    # Supported functions: sqrt(...), root(...), cbrt(...), including shorthand sqrt5, cbrt7.
     s = s.lower().strip().replace(" ", "")
     if not s:
         raise SearchParsingError("The algebraic expression is empty.")
@@ -1277,6 +1259,8 @@ def nf_string_to_min_poly(s):
     def _normalize_radicals(t):
         # Convert shorthand like sqrt5, root-3, cbrt7 into function-call form: sqrt(5), root(-3), cbrt(7).
         t = re.sub(r"\b(sqrt|root|cbrt)([+-]?\d+)\b", r"\1(\2)", t)
+        # Convert zeta shorthand like zeta5 or zeta_5 into zeta(5).
+        t = re.sub(r"\bzeta_?(\d+)\b", r"zeta(\1)", t)
         return t
 
     s = _normalize_radicals(_strip_matching_outer_parens(s))
@@ -1294,6 +1278,12 @@ def nf_string_to_min_poly(s):
             if isinstance(val, int):
                 return QQbar(QQ(val))
             raise SearchParsingError("Only numeric constants are supported in algebraic expressions.")
+        if isinstance(n, ast.Name):
+            if n.id == "i":
+                return QQbar.zeta(4)
+            if n.id == "phi":
+                return (QQbar(1) + QQbar(5).sqrt()) / 2
+            raise SearchParsingError(f"Unsupported symbol '{n.id}' in algebraic expressions.")
         if isinstance(n, ast.UnaryOp):
             v = _eval_ast(n.operand)
             if isinstance(n.op, ast.UAdd):
@@ -1319,18 +1309,58 @@ def nf_string_to_min_poly(s):
             if not isinstance(n.func, ast.Name):
                 raise SearchParsingError("Invalid function call in algebraic expression.")
             fname = n.func.id
-            if fname not in {"sqrt", "root", "cbrt"}:
+            if fname not in {"sqrt", "root", "cbrt", "zeta"}:
                 raise SearchParsingError(f"Unsupported function '{fname}' in algebraic expression.")
             if len(n.args) != 1 or n.keywords:
                 raise SearchParsingError(f"Function '{fname}' takes exactly one argument.")
             arg = _eval_ast(n.args[0])
             if fname in {"sqrt", "root"}:
                 return arg.sqrt()
+            if fname == "zeta":
+                try:
+                    n_q = QQ(arg)
+                    n_int = ZZ(n_q)
+                except (TypeError, ValueError):
+                    raise SearchParsingError("zeta(...) requires a positive integer argument.")
+                if n_q != n_int or n_int <= 0:
+                    raise SearchParsingError("zeta(...) requires a positive integer argument.")
+                return QQbar.zeta(n_int)
             return arg.nth_root(3)
         raise SearchParsingError("Unsupported syntax in algebraic expression.")
 
     try:
-        alpha = _eval_ast(node)
+        return _eval_ast(node)
+    except SearchParsingError:
+        raise
+    except Exception as err:
+        raise SearchParsingError(f"Could not evaluate algebraic expression '{s}': {err}")
+
+
+def nf_string_to_min_poly(s):
+    """
+    Return the minimal polynomial over QQ of an algebraic expression.
+
+    Supported syntax:
+    - binary operators: +, -, *, /
+    - unary operators: +, -
+    - functions: sqrt(...), root(...), cbrt(...)
+    - zeta roots of unity: zeta(...), zeta_N, zetaN
+    - imaginary unit: i
+    - golden ratio constant: phi = (1 + sqrt(5))/2
+    - shorthand radicals: sqrt5, root-3, cbrt7
+    - nested parentheses and combinations of the above
+
+    The expression is parsed with a restricted Python AST and then evaluated in QQbar.
+    The result is returned as a polynomial in QQ[x].
+
+    Examples:
+    - sqrt5 -> x^2 - 5
+    - cbrt2 -> x^3 - 2
+    - sqrt2 + sqrt3 -> x^4 - 10*x^2 + 1
+    """
+
+    try:
+        alpha = _nf_string_to_qqbar(s)
         return PolynomialRing(QQ, 'x')(alpha.minpoly())
     except SearchParsingError:
         raise
@@ -1395,14 +1425,24 @@ def nf_string_to_label(FF):
         qpart = _strip_matching_outer_parens(F[1:])
         if len(qpart) == 0:
             return "1.1.1.1"
-        # Support comma-separated generators: Q(a,b,c) -> Q(a+b+c).
+        # Support comma-separated generators Q(a,b,c) as Q(a,b,c), not Q(a+b+c).
+        from lmfdb.number_fields.number_field import poly_to_field_label
+
         if "," in qpart:
             pieces = [piece.strip() for piece in qpart.split(",")]
             if any(not piece for piece in pieces):
                 raise SearchParsingError("Empty generator in comma-separated field nickname.")
-            qpart = "+".join(pieces)
+            from sage.rings.qqbar import number_field_elements_from_algebraics
 
-        from lmfdb.number_fields.number_field import poly_to_field_label
+            alphas = [_nf_string_to_qqbar(piece) for piece in pieces]
+            K, _, _ = number_field_elements_from_algebraics(alphas)
+            pol = PolynomialRing(QQ, 'x')(K.defining_polynomial())
+            if pol.degree() <= 1:
+                return "1.1.1.1"
+            label = poly_to_field_label(pol)
+            if label:
+                return label
+            raise SearchParsingError("%s is not in the database." % FF)
 
         pol = nf_string_to_min_poly(qpart)
         if pol.degree() <= 1:

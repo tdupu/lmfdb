@@ -66,6 +66,21 @@ class NumberFieldTest(LmfdbTest):
     def test_url_multi_generator_comma_form(self):
         self.assertEqual(nf_string_to_label('Q(sqrt2,sqrt3,cbrt2)'), nf_string_to_label('Q(sqrt2+sqrt3+cbrt2)'))
 
+    def test_url_multi_generator_no_cancellation_bug(self):
+        self.assertEqual(nf_string_to_label('Q(sqrt2,-sqrt2)'), nf_string_to_label('Qsqrt2'))
+
+    def test_url_i_symbol_support(self):
+        self.assertEqual(nf_string_to_min_poly('i'), nf_string_to_min_poly('sqrt(-1)'))
+        self.assertEqual(nf_string_to_label('Q(i)'), nf_string_to_label('Q(i+0)'))
+
+    def test_url_zeta_symbol_support(self):
+        self.assertEqual(nf_string_to_min_poly('zeta_5'), nf_string_to_min_poly('zeta(5)'))
+        self.assertEqual(nf_string_to_label('Q(zeta_5)'), nf_string_to_label('Qzeta5'))
+
+    def test_url_phi_symbol_support(self):
+        self.assertEqual(nf_string_to_min_poly('phi'), nf_string_to_min_poly('(1+sqrt(5))/2'))
+        self.assertEqual(nf_string_to_label('Q(phi)'), nf_string_to_label('Qsqrt5'))
+
     def test_arith_equiv(self):
         self.check_args('/NumberField/7.3.6431296.1', '7.3.6431296.2') # arith equiv field
 
