@@ -4,7 +4,7 @@ import re
 import sys
 from collections import Counter
 from lmfdb.utils.utilities import flash_error, flash_info
-from sage.all import ZZ, QQ, prod, PolynomialRing, pari
+from sage.all import ZZ, QQ, QQbar, prod, PolynomialRing, pari
 from sage.misc.decorators import decorator_keywords
 from sage.repl.preparse import implicit_mul
 from sage.misc.parser import Parser
@@ -1227,62 +1227,118 @@ def input_string_to_poly(FF):
         return None, F, FF
 
 
+def _strip_matching_outer_parens(s):
+    """Remove only parentheses that wrap the entire string, preserving inner grouping."""
+    while len(s) >= 2 and s[0] == "(" and s[-1] == ")":
+        depth = 0
+        wraps_all = True
+        for i, ch in enumerate(s):
+            if ch == "(":
+                depth += 1
+            elif ch == ")":
+                depth -= 1
+            if depth == 0 and i < len(s) - 1:
+                wraps_all = False
+                break
+        if wraps_all and depth == 0:
+            s = s[1:-1]
+        else:
+            break
+    return s
+
+
 def nf_string_to_min_poly(s):
     """
-    Converts a string representing some algebraic number to its minimal polynomial
-    This function can be called recursively to support a wide range of possible input strings
+    Return the minimal polynomial over QQ of an algebraic expression.
+
+    Supported syntax:
+    - binary operators: +, -, *, /
+    - unary operators: +, -
+    - functions: sqrt(...), root(...), cbrt(...)
+    - shorthand radicals: sqrt5, root-3, cbrt7
+    - nested parentheses and combinations of the above
+
+    The expression is parsed with a restricted Python AST and then evaluated in QQbar.
+    The result is returned as a polynomial in QQ[x].
 
     Examples:
-    "sqrt5" gives x^2 - 5
-    "cbrt2" gives x^3 - 2
-    "sqrt2 + sqrt3" gives 
-    
+    - sqrt5 -> x^2 - 5
+    - cbrt2 -> x^3 - 2
+    - sqrt2 + sqrt3 -> x^4 - 10*x^2 + 1
     """
 
-    # Simplify input string s
-    s = s.lower().strip().replace(' ', '')
-    # Strip away brackets
-    while s[0]=='(' and s[-1]==')':
-        s = s[1:-1]
+    # Parse and evaluate algebraic expressions recursively using a restricted AST.
+    # Supported operators: +, -, *, / and unary +/-.
+    # Supported functions: sqrt(...), root(...), cbrt(...), including shorthand sqrt5, cbrt7.
+    s = s.lower().strip().replace(" ", "")
+    if not s:
+        raise SearchParsingError("The algebraic expression is empty.")
 
-    # Case: number
-    if s.is_digit():
-        return [-ZZ(s), 1]
+    def _normalize_radicals(t):
+        # Convert shorthand like sqrt5, root-3, cbrt7 into function-call form: sqrt(5), root(-3), cbrt(7).
+        t = re.sub(r"\b(sqrt|root|cbrt)([+-]?\d+)\b", r"\1(\2)", t)
+        return t
 
-    # Case: square root
-    if s[:4] in ["sqrt", "root"]:
-        if (s[4]=='(' and s[-1]==')') or s[4:].is_digit():
-            tmp = nf_string_to_min_poly(s[4:])
-            return [...]  # put 0s in between the coefficinets
+    s = _normalize_radicals(_strip_matching_outer_parens(s))
 
-    # Case cube root
-    if s[:4] == "cbrt":
-        if (s[4]=='(' and s[-1]==')') or s[4:].is_digit():
-            tmp = nf_string_to_min_poly(s[4:])
-            return [...]  # put two 0s in between the coefficinets
-            
-    # Case: addition +
-    cases = s.split('+')
-    a1 = nf_string_to_min_poly(cases[0])
-    a2 = nf_string_to_mind_poly(cases[1])
+    try:
+        node = ast.parse(s, mode="eval")
+    except SyntaxError as err:
+        raise SearchParsingError(f"Could not parse algebraic expression '{s}': {err.msg}")
 
-    # Now compute resultant Resx?(p(x),q(t-x)).
+    def _eval_ast(n):
+        if isinstance(n, ast.Expression):
+            return _eval_ast(n.body)
+        if isinstance(n, ast.Constant):
+            val = n.value
+            if isinstance(val, int):
+                return QQbar(QQ(val))
+            raise SearchParsingError("Only numeric constants are supported in algebraic expressions.")
+        if isinstance(n, ast.UnaryOp):
+            v = _eval_ast(n.operand)
+            if isinstance(n.op, ast.UAdd):
+                return v
+            if isinstance(n.op, ast.USub):
+                return -v
+            raise SearchParsingError("Unsupported unary operator in algebraic expression.")
+        if isinstance(n, ast.BinOp):
+            left = _eval_ast(n.left)
+            right = _eval_ast(n.right)
+            if isinstance(n.op, ast.Add):
+                return left + right
+            if isinstance(n.op, ast.Sub):
+                return left - right
+            if isinstance(n.op, ast.Mult):
+                return left * right
+            if isinstance(n.op, ast.Div):
+                if right == 0:
+                    raise SearchParsingError("Division by zero in algebraic expression.")
+                return left / right
+            raise SearchParsingError("Unsupported binary operator in algebraic expression.")
+        if isinstance(n, ast.Call):
+            if not isinstance(n.func, ast.Name):
+                raise SearchParsingError("Invalid function call in algebraic expression.")
+            fname = n.func.id
+            if fname not in {"sqrt", "root", "cbrt"}:
+                raise SearchParsingError(f"Unsupported function '{fname}' in algebraic expression.")
+            if len(n.args) != 1 or n.keywords:
+                raise SearchParsingError(f"Function '{fname}' takes exactly one argument.")
+            arg = _eval_ast(n.args[0])
+            if fname in {"sqrt", "root"}:
+                return arg.sqrt()
+            return arg.nth_root(3)
+        raise SearchParsingError("Unsupported syntax in algebraic expression.")
+
+    try:
+        alpha = _eval_ast(node)
+        return PolynomialRing(QQ, 'x')(alpha.minpoly())
+    except SearchParsingError:
+        raise
+    except Exception as err:
+        raise SearchParsingError(f"Could not evaluate algebraic expression '{s}': {err}")
 
 
-    # Case product *
-    cases = s.split('*')
-
-
-    # Case: subtraction
-
-
-    # Case: division
-
-    
-    
-
-
-def nf_string_to_label(FF):  
+def nf_string_to_label(FF):
     """
     Converts a number field nickname or polynomial to the corresponding LMFDB label
     e.g. Q, Qsqrt2, Qsqrt-4, Qzeta5, Q(sqrt2+sqrt3), Qcbrt2, etc.
@@ -1307,166 +1363,7 @@ def nf_string_to_label(FF):
             return F1
         raise SearchParsingError("%s does not define a number field in the database." % F, trim_msg_error=True)
 
-    # Returns LMFDB label for quadratic field Q(sqrt(d)) for squarefree d
-    def quadratic_label(d):
-        if d == 0:
-            raise SearchParsingError("After {0}, the remainder must be a nonzero integer.  Use {0}5 or {0}-11 for example.".format(FF[:5]))
-        if d == 1:
-            return "1.1.1.1"
-        if d%4 in [2, 3]:
-            D = 4 * d
-        else:
-            D = d
-        absD = D.abs()
-        s = 0 if D < 0 else 2
-        return "2.%s.%s.1" % (s, str(absD))
-
-    # Returns LMFDB label for cubic field Q(cbrt(d))
-    def cubic_label(d):
-        if d == 0:
-            raise SearchParsingError("After {0}, the remainder must be a nonzero integer.  Use {0}5 or {0}-11 for example.".format(FF[:5]))
-        try:
-            d.nth_root(3)  # Check if d is a perfect cube
-            return "1.1.1.1"
-
-        except ValueError:
-            from lmfdb.number_fields.number_field import poly_to_field_label
-
-            x = PolynomialRing(QQ, 'x').gen()
-            label = poly_to_field_label(x**3 - d)
-            if label:
-                return label
-            raise SearchParsingError("%s is not in the database." % FF)
-
-    # Strip matching outer parentheses, preserving nested structure.
-    def strip_outer_parens(s):
-        while len(s) >= 2 and s[0] == "(" and s[-1] == ")":
-            depth = 0
-            wraps_all = True
-            for i, ch in enumerate(s):
-                if ch == "(":
-                    depth += 1
-                elif ch == ")":
-                    depth -= 1
-                if depth == 0 and i < len(s) - 1:
-                    wraps_all = False
-                    break
-            if wraps_all and depth == 0:
-                s = s[1:-1]
-            else:
-                break
-        return s
-
-    def parse_sqrt_argument(s):
-        s = strip_outer_parens(s)
-        if s[:4] not in ["sqrt", "root"]:
-            return None
-        arg = strip_outer_parens(s[4:])
-        try:
-            return integer_squarefree_part(ZZ(str(arg)))
-        except (TypeError, ValueError):
-            return None
-
-    def parse_cbrt_argument(s):
-        s = strip_outer_parens(s)
-        if s[:4] != "cbrt":
-            return None
-        arg = strip_outer_parens(s[4:])
-        try:
-            return ZZ(str(arg))
-        except (TypeError, ValueError):
-            return None
-
-    def parse_biquadratic_sqrt_sum(s):
-        s = strip_outer_parens(s)
-        m = re.match(
-            r"^(?:sqrt|root)(?:\(([+-]?\d+)\)|([+-]?\d+))([+-])(?:sqrt|root)(?:\(([+-]?\d+)\)|([+-]?\d+))$",
-            s,
-        )
-        if not m:
-            return None
-        d1 = m.group(1) if m.group(1) is not None else m.group(2)
-        d2 = m.group(4) if m.group(4) is not None else m.group(5)
-        try:
-            return [integer_squarefree_part(ZZ(str(d1))), integer_squarefree_part(ZZ(str(d2)))]
-        except (TypeError, ValueError):
-            return None
-
-    def biquadratic_label_from_ds(ds):
-        if 0 in ds:
-            raise SearchParsingError("After Q, each square root must contain a nonzero integer.  Use Q(sqrt2,sqrt3) for example.")
-        if ds[0] == 1:
-            return quadratic_label(ds[1])
-        if ds[1] == 1 or ds[0] == ds[1]:
-            return quadratic_label(ds[0])
-        from lmfdb.number_fields.number_field import poly_to_field_label
-
-        x = PolynomialRing(QQ, 'x').gen()
-        pol = x**4 - 2 * (ds[0] + ds[1]) * x**2 + (ds[0] - ds[1])**2
-        label = poly_to_field_label(pol)
-        if label:
-            return label
-        raise SearchParsingError("%s is not in the database." % FF)
-
-    def quartic_nonprimitive_label(s):
-        s = strip_outer_parens(s)
-        if s[:4] not in ["sqrt", "root"]:
-            return None
-        inner = strip_outer_parens(s[4:])
-        m = re.match(r"^([+-]?\d+)([+-])([+-]?\d+)\*(?:sqrt|root)(?:\(([+-]?\d+)\)|([+-]?\d+))$", inner)
-        if not m:
-            return None
-        A = ZZ(m.group(1))
-        B = ZZ(m.group(3))
-        if m.group(2) == "-":
-            B = -B
-        D = ZZ(m.group(4) if m.group(4) is not None else m.group(5))
-        if B == 0 or D == 0:
-            raise SearchParsingError("In Q(sqrt(A + B*sqrt(D))), B and D must be nonzero integers.")
-
-        from lmfdb.number_fields.number_field import poly_to_field_label
-
-        x = PolynomialRing(QQ, 'x').gen()
-        pol = x**4 - 2 * A * x**2 + (A**2 - B**2 * D)
-        label = poly_to_field_label(pol)
-        if label:
-            return label
-        raise SearchParsingError("%s is not in the database." % FF)
-
-
     if F[0] == "q":
-        qpart = F[1:]
-        if len(qpart) > 0:
-            qpart = strip_outer_parens(qpart)
-
-            # Check for biquadratic field name Q(sqrtA, sqrtB)
-            if "," in qpart:
-                pieces = qpart.split(",")
-                if len(pieces) == 2:
-                    ds = [parse_sqrt_argument(piece) for piece in pieces]
-                    if all(d is not None for d in ds):
-                        return biquadratic_label_from_ds(ds)
-
-            # Check for biquadratic field name Q(sqrtA+sqrtB)
-            ds = parse_biquadratic_sqrt_sum(qpart)
-            if ds is not None:
-                return biquadratic_label_from_ds(ds)
-
-            # Check for quartic non-primitive field name Q(sqrt(A + B*sqrt(D)))
-            label = quartic_nonprimitive_label(qpart)
-            if label:
-                return label
-
-        # Check for quadratic field name
-        d = parse_sqrt_argument(qpart)
-        if d is not None:
-            return quadratic_label(d)
-
-        # Check for cubic field name
-        d = parse_cbrt_argument(qpart)
-        if d is not None:
-            return cubic_label(d)
-
         # Check if cyclotomic field (or its maximal real subfield)
         if F[0:5] == "qzeta":
             if "_" in F:
@@ -1493,7 +1390,27 @@ def nf_string_to_label(FF):
                 return cyclolookup[d]
             else:
                 raise SearchParsingError(f"{F} is not in the database.")
-        raise SearchParsingError("It is not a valid field name or label, or a defining polynomial.")
+
+        # Generic algebraic nickname parser for Q(...), Qsqrt..., Qcbrt..., etc.
+        qpart = _strip_matching_outer_parens(F[1:])
+        if len(qpart) == 0:
+            return "1.1.1.1"
+        # Support comma-separated generators: Q(a,b,c) -> Q(a+b+c).
+        if "," in qpart:
+            pieces = [piece.strip() for piece in qpart.split(",")]
+            if any(not piece for piece in pieces):
+                raise SearchParsingError("Empty generator in comma-separated field nickname.")
+            qpart = "+".join(pieces)
+
+        from lmfdb.number_fields.number_field import poly_to_field_label
+
+        pol = nf_string_to_min_poly(qpart)
+        if pol.degree() <= 1:
+            return "1.1.1.1"
+        label = poly_to_field_label(pol)
+        if label:
+            return label
+        raise SearchParsingError("%s is not in the database." % FF)
 
     # Expand out factored labels, like 11.11.11e20.1
     from lmfdb.number_fields.number_field import FIELD_LABEL_RE

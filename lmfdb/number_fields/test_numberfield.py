@@ -1,5 +1,5 @@
 from lmfdb.tests import LmfdbTest
-from lmfdb.utils.search_parsing import nf_string_to_label
+from lmfdb.utils.search_parsing import nf_string_to_label, nf_string_to_min_poly
 
 class NumberFieldTest(LmfdbTest):
     # All tests should pass
@@ -58,6 +58,13 @@ class NumberFieldTest(LmfdbTest):
 
     def test_url_quartic_nested_radical_naturallabel(self):
         self.assertEqual(nf_string_to_label('Q(sqrt(1+1*sqrt2))'), nf_string_to_label('x^4-2*x^2-1'))
+
+    def test_url_recursive_nested_surds_and_cbrt(self):
+        expr = 'sqrt(3)+sqrt(2+4*sqrt(4)+cbrt(7))'
+        self.assertEqual(nf_string_to_min_poly(expr), nf_string_to_min_poly('sqrt(3)+sqrt(10+cbrt(7))'))
+
+    def test_url_multi_generator_comma_form(self):
+        self.assertEqual(nf_string_to_label('Q(sqrt2,sqrt3,cbrt2)'), nf_string_to_label('Q(sqrt2+sqrt3+cbrt2)'))
 
     def test_arith_equiv(self):
         self.check_args('/NumberField/7.3.6431296.1', '7.3.6431296.2') # arith equiv field
