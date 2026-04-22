@@ -1369,7 +1369,7 @@ def nf_string_to_label(FF):
     Converts a number field nickname, polynomial, or label to the corresponding LMFDB label (in the format "d.r.D.n").
 
     Supports custom nicknames of the form Q(s1, s2, ..., sk) where each si is a string representing an algebraic expression
-    Uses _nf_string_to_qqbar to safely parse algebraic elements into elements in QQbar.
+    Uses _nf_string_to_qqbar to safely parse algebraic expressions into elements in QQbar.
     Uses number_field_elements_from_algebraics to compute the minimal number field containing the specified elements.
 
     Examples: Q, Qsqrt2, Qsqrt-4, Qzeta5, Q(sqrt2+sqrt3), Qcbrt2, Q(sqrt(2 + 3*sqrt2)), Q(sqrt2, cbrt3), Q(2^(1/5)), etc.
@@ -1398,7 +1398,7 @@ def nf_string_to_label(FF):
         # Strip away outer parenthesis
         Fstrip = _strip_matching_outer_parens(F[1:])
 
-        # Fast path: check if quadratic field of the form Qsqrt5 or Q(sqrt5)
+        # Check if input is quadratic field (given in the form Qsqrt5 or Q(sqrt5))
         if re.match(r'^(sqrt|root)[+-]?\d+$', Fstrip):
             try:
                 d = integer_squarefree_part(ZZ(str(Fstrip[4:])))
@@ -1417,9 +1417,8 @@ def nf_string_to_label(FF):
             return "2.%s.%s.1" % (s, str(absD))
 
         # Check if cyclotomic field (or its maximal real subfield)
-        if Fstrip[:4] == "zeta":
-            F = F.replace("_", "")
-            match_obj = re.match(r"^qzeta(\d+)(\+|plus)?$", F)
+        if Fstrip[:4] == "zeta" and re.match(r"^qzeta\d+(\+|plus)?$", F.replace("_", "")):
+            match_obj = re.match(r"^qzeta(\d+)(\+|plus)?$", F.replace("_", ""))
             if not match_obj:
                 raise SearchParsingError("After {0}, the remainder must be a positive integer or a positive integer followed by '+'.  Use {0}5 or {0}19+, for example.".format(F[:5]))
 
@@ -1427,7 +1426,7 @@ def nf_string_to_label(FF):
             if d % 4 == 2:
                 d /= 2  # Q(zeta_6)=Q(zeta_3), etc)
 
-            # Check if matches totally real subfield of cyclotomic
+            # Check if matches maximal real subfield of a cyclotomic field
             if match_obj.group(2):  
                 from lmfdb.number_fields.web_number_field import rcyclolookup
 

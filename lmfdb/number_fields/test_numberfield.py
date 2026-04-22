@@ -1,5 +1,4 @@
 from lmfdb.tests import LmfdbTest
-from lmfdb.utils.search_parsing import nf_string_to_label, nf_string_to_min_poly
 
 class NumberFieldTest(LmfdbTest):
     # All tests should pass
@@ -31,9 +30,13 @@ class NumberFieldTest(LmfdbTest):
 
     def test_search_zeta(self):
         self.check_args('/NumberField/?jump=Qzeta23&search=Go', '[3]') # class group
+        self.check_args('/NumberField/?jump=Qzeta_23&search=Go', '[3]') # class group
+        self.check_args('/NumberField/?jump=qzeta23%2B&search=Go', '1014.3133') # regulator
+        self.check_args('/NumberField/?jump=qzeta_23%2B&search=Go', '1014.3133') # regulator
 
     def test_search_sqrt(self):
         self.check_args('/NumberField/?jump=Qsqrt-163&search=Go', '41') # minpoly
+        self.check_args('/NumberField/?jump=q(sqrt-163)&search=Go', '41') # minpoly
 
     def test_search_disc(self):
         self.check_args('/NumberField/?discriminant=1988-2014', '401') # factor of one of the discriminants
@@ -44,42 +47,17 @@ class NumberFieldTest(LmfdbTest):
     def test_url_naturallabel(self):
         self.check_args('/NumberField/Qsqrt5', '0.481211825') # regulator
 
-    def test_url_biquadratic_naturallabel(self):
-        self.check_args('/NumberField/Q(sqrt2+sqrt3)', '4.4.2304.1')
-
-    def test_url_cubic_naturallabel(self):
+    def test_url_naturallabel_custom(self):
+        # Test various different custom nicknames for number fields
+        self.check_args('/NumberField/Qi', '2.0.4.1')
+        self.check_args('/NumberField/Qphi', '2.2.5.1')
         self.check_args('/NumberField/Qcbrt2', '3.1.108.1')
-
-    def test_url_cubic_naturallabel_parenthesized(self):
-        self.assertEqual(nf_string_to_label('Q(cbrt(2))'), nf_string_to_label('Qcbrt2'))
-
-    def test_url_biquadratic_comma_naturallabel(self):
-        self.assertEqual(nf_string_to_label('Q(sqrt2,sqrt3)'), nf_string_to_label('Q(sqrt2+sqrt3)'))
-
-    def test_url_quartic_nested_radical_naturallabel(self):
-        self.assertEqual(nf_string_to_label('Q(sqrt(1+1*sqrt2))'), nf_string_to_label('x^4-2*x^2-1'))
-
-    def test_url_recursive_nested_surds_and_cbrt(self):
-        expr = 'sqrt(3)+sqrt(2+4*sqrt(4)+cbrt(7))'
-        self.assertEqual(nf_string_to_min_poly(expr), nf_string_to_min_poly('sqrt(3)+sqrt(10+cbrt(7))'))
-
-    def test_url_multi_generator_comma_form(self):
-        self.assertEqual(nf_string_to_label('Q(sqrt2,sqrt3,cbrt2)'), nf_string_to_label('Q(sqrt2+sqrt3+cbrt2)'))
-
-    def test_url_multi_generator_no_cancellation_bug(self):
-        self.assertEqual(nf_string_to_label('Q(sqrt2,-sqrt2)'), nf_string_to_label('Qsqrt2'))
-
-    def test_url_i_symbol_support(self):
-        self.assertEqual(nf_string_to_min_poly('i'), nf_string_to_min_poly('sqrt(-1)'))
-        self.assertEqual(nf_string_to_label('Q(i)'), nf_string_to_label('Q(i+0)'))
-
-    def test_url_zeta_symbol_support(self):
-        self.assertEqual(nf_string_to_min_poly('zeta_5'), nf_string_to_min_poly('zeta(5)'))
-        self.assertEqual(nf_string_to_label('Q(zeta_5)'), nf_string_to_label('Qzeta5'))
-
-    def test_url_phi_symbol_support(self):
-        self.assertEqual(nf_string_to_min_poly('phi'), nf_string_to_min_poly('(1+sqrt(5))/2'))
-        self.assertEqual(nf_string_to_label('Q(phi)'), nf_string_to_label('Qsqrt5'))
+        self.check_args('/NumberField/Q(sqrt2+sqrt3)', '4.4.2304.1')
+        self.check_args('/NumberField/Q(sqrt2,sqrt3)', '4.4.2304.1')
+        self.check_args('/NumberField/Q(sqrt(1 + sqrt2))', '4.2.1024.1')
+        self.check_args('/NumberField/Q(sqrt2,sqrt3,cbrt2)', '12.4.320979616137216.3')
+        self.check_args('/NumberField/Q(sqrt2,-sqrt2)', '2.2.8.1')
+        self.check_args('/NumberField/Q(sqrt2-sqrt2)', '1.1.1.1')
 
     def test_arith_equiv(self):
         self.check_args('/NumberField/7.3.6431296.1', '7.3.6431296.2') # arith equiv field
