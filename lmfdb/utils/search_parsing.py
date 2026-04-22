@@ -1252,18 +1252,19 @@ def _nf_string_to_qqbar(s):
     Converts a string into an algebraic element in QQbar.
 
     Supported syntax:
-    - binary operators: +, -, *, /
+    - binary operators: +, -, *, /, ^ (exponentiation)
     - unary operators: +, -
     - functions: sqrt(...), root(...), cbrt(...)
     - zeta roots of unity: zeta(...), zeta_N, zetaN
     - imaginary unit: i
     - golden ratio constant: phi = (1 + sqrt(5))/2
     - shorthand radicals: sqrt5, root-3, cbrt7
+    - nth-roots via exponentiation: base^(1/n), e.g., 2^(1/3), phi^(3/4)
     - nested parentheses and combinations of the above
 
-    The expression is parsed with a restricted Python AST and then evaluated in QQbar.
+    The expression is safely parsed with a restricted Python AST and then evaluated as a Sage object in QQbar.
 
-    Examples: sqrt2, sqrt2 + cbrt3, zeta4 - 1/phi, sqrt(2 + 3*sqrt(2))
+    Examples: sqrt2, sqrt2 + cbrt3, zeta4 - 1/phi, sqrt(2 + 3*sqrt(2)), 2^(1/3), phi^(3/4)
 
     """
 
@@ -1276,6 +1277,8 @@ def _nf_string_to_qqbar(s):
         t = re.sub(r"\b(sqrt|root|cbrt)([+-]?\d+)\b", r"\1(\2)", t)
         # Convert zeta shorthand like zeta5 or zeta_5 into zeta(5).
         t = re.sub(r"\bzeta_?(\d+)\b", r"zeta(\1)", t)
+        # Convert ^ to ** for exponentiation (Python uses ** for exponentiation)
+        t = t.replace("^", "**")
         return t
 
     s = _normalize_radicals(_strip_matching_outer_parens(s))
@@ -1319,6 +1322,16 @@ def _nf_string_to_qqbar(s):
                 if right == 0:
                     raise SearchParsingError("Division by zero in algebraic expression.")
                 return left / right
+            if isinstance(n.op, ast.Pow):
+                # Support for arbitrary nth-roots via exponentiation: base^(exponent)
+                # The exponent should be a rational number for algebraic evaluation
+                try:
+                    exp_rational = QQ(right)
+                except (TypeError, ValueError):
+                    raise SearchParsingError(f"Exponent must be a rational number, got {right}.")
+                # Use QQbar's power operator to handle rational exponents
+                # This computes base^exp_rational in QQbar
+                return left ** exp_rational
             raise SearchParsingError("Unsupported binary operator in algebraic expression.")
         if isinstance(n, ast.Call):
             if not isinstance(n.func, ast.Name):
