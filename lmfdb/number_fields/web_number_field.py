@@ -4,7 +4,7 @@ import yaml
 
 from flask import url_for
 from sage.all import (
-    Set, ZZ, RR, pi, euler_phi, CyclotomicField, gap, RealField, sqrt, prod,
+    Set, ZZ, RR, pi, euler_phi, CyclotomicField, gap, RealField, sqrt, prod, matrix, GF,
     QQ, NumberField, QuadraticField, PolynomialRing, latex, pari, cached_function, Permutation)
 
 from lmfdb import db
@@ -213,10 +213,12 @@ def is_fundamental_discriminant(d):
 @cached_function
 def field_pretty(label):
     """
-    Given an LMFDB number field label, returns a "pretty" latexed representation of this field (if this exists)
-    Otherwise, simply returns back the label itself if unable to find a latex represntation
+    Given an LMFDB number field label, returns a "pretty" latexed representation of this field (if it exists)
+    Otherwise, simply returns back the label itself if unable to find a latex representation.
 
-    Cases implemented:  Quadratic fields, Pure cubic fields, Impritive quartic fields, (real) cyclotomic fields, and multi-quadratic fields
+    Cases implemented:
+     - Rational field, Quadratic fields, Pure cubic fields, Imprimitive quartic fields,
+     - cyclotomic fields and their maximal real subfields, and general multi-quadratic fields.
     """
 
     d, r, D, _ = label.split('.')
@@ -269,7 +271,7 @@ def field_pretty(label):
                 labels_str = [_sqrt_symbol(z) for z in labels_values]
                 return r'\(\Q(%s, %s)\)' % (labels_str[0], labels_str[1])
             
-        # Case 4b: Imprimitive quartic fields of type Q(sqrt(A + Bsqrt(D)))
+        # Case 4b: Imprimitive quartic fields of type Q(\sqrt(A + B*\sqrt(D)))
         if len(subs) == 1:
             quad_sub = wnf.from_coeffs(string2list(str(subs[0][0])))
             if not quad_sub._data is None:
@@ -295,30 +297,37 @@ def field_pretty(label):
         # Check that discriminant is negative
         if wnf.disc() < 0:
             # Try to solve for a real root of defining polynomial:
-            poly = wnf.poly()
+            a, b, c, d = wnf.poly().coefficients(sparse=False)
             p = (3*a*c - b**2)/(3*a**2)
             q = (2*b**3 - 9*a*b*c + 27*a**2*d)/(27*a**3)
             r = (q**2)/4 + (p**3)/27
 
+            # A real root is (-q/2 +/- sqrt(r))^{1/3}
             if r.is_square():
                 rs = sqrt(r)
-                # Check if they generate the same cubic field
+
+                print("*** CUBIC DEBUG  ***:", -q/2 + rs, -q/2 - rs)
+                # Check if (-q/2+sqrt(r))^{1/3} and (-q/2-sqrt(r))^{1/3} generate the same cubic field
                 if gen_same(-q/2 + rs, -q/2 - rs):
                     return r'\(\Q(\sqrt[3]{%d})\)' % -q/2 + rs
 
-    # Case 7: Arbitrary multi-quadratic fields
+    # Case 7: General multi-quadratic fields: Q(\sqrt{D_1}, ..., \sqrt{D_k})
     if ZZ(d).is_power_of(2):
+        k = ZZ(d).valuation(2)
         wnf = WebNumberField(label)
-        subs = wnf.subfields()
-        quad_labels = [s[0] for s in subs if s[0].count('.') == 2]
-        num_quad_subs = len(quad_labels)
+        all_subs = wnf.subfields()
+        quad_subs = [s[0] for s in all_subs if s[0].count('.') == 2]
+        num_quad_subs = len(quad_subs)
         #print("********test")
         if num_quad_subs == int(d) - 1:
             #print("*******TEST****")
+            quad_labels = [str(wnf.from_coeffs(string2list(str(z[0]))).get_label()) for z in quad_subs]
             all_Ds = [_quad_label_to_D(qlabel) for qlabel in quad_labels]
+
             # Sort the Ds by absolute value (in case of tie, put positives first)
             sorted_Ds = sorted(all_Ds, key = lambda x: (abs(x), -x))
             final_Ds = []
+
             # Compute set of all primes dividing the Ds (include -1)
             primes = sorted({int(p) for D in Ds for p in ZZ(abs(D)).prime_divisors()})
 
@@ -327,20 +336,17 @@ def field_pretty(label):
 
             for D in sorted_Ds:
                 # Convert D to a vector of prime exponents mod 2 (including sign)
-                prime_exp = [int(D < 0)]+[D.valuation(p) % 2 for p in primes]
-                tmp = matrix(GF(2), all_prime_exponents)
-
-                if prime_exp not in tmp.column_space():
+                prime_exp = [int(D < 0)]+[D.valuation(p)%2 for p in primes]
+                if prime_exp not in matrix(GF(2), all_prime_exponents).row_space():
                     all_prime_exponents.append(prime_exp)
                     final_Ds.append(D)
 
                     # Break out once rank is full
-                    if len(final_Ds) == int(d):
+                    if len(final_Ds) == k:
                         break
             return r'\(\Q('+', '.join([_sqrt_symbol(D) for D in final_Ds])+r')\)'
 
-
-    # Otherwise, return label
+    # Otherwise, if no latex form found, just return the LMFDB label
     return label
 
 
