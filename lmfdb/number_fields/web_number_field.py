@@ -212,10 +212,21 @@ def is_fundamental_discriminant(d):
 
 @cached_function
 def field_pretty(label):
+    """
+    Given an LMFDB number field label, returns a "pretty" latexed representation of this field (if this exists)
+    Otherwise, simply returns back the label itself if unable to find a latex represntation
+
+    Cases implemented:  Quadratic fields, Pure cubic fields, Impritive quartic fields, (real) cyclotomic fields, and multi-quadratic fields
+    """
+
     d, r, D, _ = label.split('.')
+
+    # Case 1: The rationals Q
     if d == '1':  # Q
         return r'\(\Q\)'
-    if d == '2':  # quadratic field
+    
+    # Case 2: Quadratic fields Q(\sqrt{D})
+    if d == '2':
         D = ZZ(int(D))
         if r == '0':
             D = -D
@@ -223,11 +234,17 @@ def field_pretty(label):
         if not is_fundamental_discriminant(D):
             return label
         return r'\(\Q(\sqrt{' + str(D if D % 4 else D/4) + r'}) \)'
+    
+    # Case 3: Cyclotomic fields Q(\zeta_N)
     if label in cycloinfo:
         return r'\(\Q(\zeta_{%d})\)' % cycloinfo[label]
+    
+    # Case 4: Imprimitive quartic fields
     if d == '4':
         wnf = WebNumberField(label)
         subs = wnf.subfields()
+
+        # Case 4a: Biquadratic fields Q(\sqrt{A}, \sqrt{B})
         if len(subs) == 3:  # only for V_4 fields
             subs = [wnf.from_coeffs(string2list(str(z[0]))) for z in subs]
             # Abort if we don't know one of these fields
@@ -241,8 +258,69 @@ def field_pretty(label):
                 labels_str = ['i' if z == -1 else r'\sqrt{%d}' % z
                               for z in labels_values]
                 return r'\(\Q(%s, %s)\)' % (labels_str[0], labels_str[1])
+            
+        # Case 4b: Imprimitive quartic fields of type Q(sqrt(A + Bsqrt(D)))
+        if len(subs) == 1:
+            # Factorise defining polynomial for K over Q(sqrt(D))
+            D = subs[0]
+            Ksub = QuadraticField(D)
+            relative_poly = poly.factor()[0]
+            rel_ceoffs = relative_poly.coefficients(sparse=False)
+            ans = rel_coeffs[1]**2 - 4*rel_coeffs[0]*rel_coeffs[2]
+
+            return r'\(\Q(\sqrt{%s}\)' % ans
+
+            
+    # Case 5: Maximal real subfields of cyclotomic fields Q(\zeta_N)^+
     if label in rcycloinfo:
         return r'\(\Q(\zeta_{%d})^+\)' % rcycloinfo[label]
+    
+    # Case 6: Pure cubic fields Q(\sqrt[3]{N})
+    if d == 3:
+        wnf = WebNumberField(label)
+        # Check that discriminant is negative
+        if wnf.disc() < 0:
+            # Try to solve for a real root of defining polynomial:
+            poly = wnf.poly()
+            p = (3*a*c - b**2)/(3*a**2)
+            q = (2*b**3 - 9*a*b*c + 27*a**2*d)/(27*a**3)
+            r = (q**2)/4 + (p**3)/27
+
+            if r.is_square():
+                rs = sqrt(r)
+                # Check if they generate the same cubic field
+                if gen_same(-q/2 + rs, -q/2 - rs):
+                    return r'\(\Q(\sqrt[3]{%d})\)' % -q/2 + rs
+
+    # Case 7: Arbitrary multi-quadratic fields
+    if is_power_of_2(d):
+        wnf = WebNumberField(label)
+        subs = wnf.subfields()
+        num_quad_subs = sum(s.count('.')==2 for s in subs)
+        if num_quad_subs == d-1:
+            all_Ds = sorted(int(D) for D in Ds)
+            final_Ds = []
+            # Compute set of all primes dividing the Ds
+            primes = sorted({int(p) for d in ds for p in ZZ(abs(d)).prime_divisors()})
+
+            # Keep track of prime exponents used so far
+            all_prime_exponents = []
+
+            for D in Ds:
+                prime_exp = [D.valuation(p)%2 for p in primes]
+                tmp = matrix(GF(2), all_prime_exponents)
+
+                if prime_exp not in tmp.column_space():
+                    all_prime_exponents.append(prime_exp)
+                    final_Ds.append(D)
+
+                    # Break out once rank is full
+                    if len(final_Ds) == d:
+                        break
+            return r'\(\Q('+', '.join([str(D) for D in Ds])+')\)'
+
+
+    # Otherwise, return label
     return label
 
 
