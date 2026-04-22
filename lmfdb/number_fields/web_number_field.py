@@ -261,16 +261,21 @@ def field_pretty(label):
             
         # Case 4b: Imprimitive quartic fields of type Q(sqrt(A + Bsqrt(D)))
         if len(subs) == 1:
-            # Factorise defining polynomial for K over Q(sqrt(D))
-            D = subs[0]
-            Ksub = QuadraticField(D)
-            relative_poly = poly.factor()[0]
-            rel_ceoffs = relative_poly.coefficients(sparse=False)
-            ans = rel_coeffs[1]**2 - 4*rel_coeffs[0]*rel_coeffs[2]
+            quad_sub = wnf.from_coeffs(string2list(str(subs[0][0])))
+            if not quad_sub._data is None:
+                # Factorise defining polynomial for K over Q(sqrt(D))
+                quad_label = str(quad_sub.get_label())
+                D = quad_label.split('.')[2]
+                Ksub = NumberField(quad_sub.poly(), 'b')
+                Rsub = PolynomialRing(Ksub, 'x')
+                relative_poly = Rsub(wnf.poly())
+                factors = relative_poly.factor()
 
-            return r'\(\Q(\sqrt{%s}\)' % ans
+                # Can extract the first quadratic factor
+                rel_coeffs = factors.coefficients(sparse=False)
+                ans = rel_coeffs[1]**2 - 4*rel_coeffs[0]*rel_coeffs[2]
+                return r'\(\Q(\sqrt{%s})\)' % latex(ans)
 
-            
     # Case 5: Maximal real subfields of cyclotomic fields Q(\zeta_N)^+
     if label in rcycloinfo:
         return r'\(\Q(\zeta_{%d})^+\)' % rcycloinfo[label]
