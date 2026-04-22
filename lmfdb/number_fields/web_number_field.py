@@ -5,7 +5,7 @@ import yaml
 from flask import url_for
 from sage.all import (
     Set, ZZ, RR, pi, euler_phi, CyclotomicField, gap, RealField, sqrt, prod,
-    QQ, NumberField, PolynomialRing, latex, pari, cached_function, Permutation)
+    QQ, NumberField, QuadraticField, PolynomialRing, latex, pari, cached_function, Permutation)
 
 from lmfdb import db
 from lmfdb.utils import (web_latex, coeff_to_poly,
@@ -225,6 +225,17 @@ def field_pretty(label):
     if d == '1':  # Q
         return r'\(\Q\)'
     
+    # Converts LMFDB label for quadratic field K to the D in K = Q(sqrt(D))
+    def _quad_label_to_D(quad_label):
+        parts = str(quad_label).split('.')
+        DD = integer_squarefree_part(ZZ(parts[2]))  # Get squarefree part
+        DD *= (-1) ** (1 + int(parts[1]) // 2)      # Get correct sign
+        return ZZ(DD)
+
+    # Converts D to the latexed form of sqrt(D)
+    def _sqrt_symbol(DD):
+        return 'i' if DD == -1 else r'\sqrt{%d}' % DD
+
     # Case 2: Quadratic fields Q(\sqrt{D})
     if d == '2':
         D = ZZ(int(D))
@@ -255,8 +266,7 @@ def field_pretty(label):
                 labels = sorted([[integer_squarefree_part(ZZ(z[2])), - int(z[1])] for z in labels_split])
                 # put in +/- sign
                 labels_values = [z[0] * (-1)**(1 + z[1] / 2) for z in labels]
-                labels_str = ['i' if z == -1 else r'\sqrt{%d}' % z
-                              for z in labels_values]
+                labels_str = [_sqrt_symbol(z) for z in labels_values]
                 return r'\(\Q(%s, %s)\)' % (labels_str[0], labels_str[1])
             
         # Case 4b: Imprimitive quartic fields of type Q(sqrt(A + Bsqrt(D)))
@@ -265,14 +275,13 @@ def field_pretty(label):
             if not quad_sub._data is None:
                 # Factorise defining polynomial for K over Q(sqrt(D))
                 quad_label = str(quad_sub.get_label())
-                D = quad_label.split('.')[2]
-                Ksub = NumberField(quad_sub.poly(), 'b')
+                D = _quad_label_to_D(quad_label)
+                Ksub = QuadraticField(D, 'b')
                 Rsub = PolynomialRing(Ksub, 'x')
-                relative_poly = Rsub(wnf.poly())
-                factors = relative_poly.factor()
+                relative_poly = Rsub(wnf.poly()).factor()[0][0]
 
                 # Can extract the first quadratic factor
-                rel_coeffs = factors.coefficients(sparse=False)
+                rel_coeffs = relative_poly.coefficients(sparse=False)
                 ans = rel_coeffs[1]**2 - 4*rel_coeffs[0]*rel_coeffs[2]
                 return r'\(\Q(\sqrt{%s})\)' % latex(ans)
 
@@ -281,7 +290,7 @@ def field_pretty(label):
         return r'\(\Q(\zeta_{%d})^+\)' % rcycloinfo[label]
     
     # Case 6: Pure cubic fields Q(\sqrt[3]{N})
-    if d == 3:
+    if d == '3':
         wnf = WebNumberField(label)
         # Check that discriminant is negative
         if wnf.disc() < 0:
@@ -298,21 +307,27 @@ def field_pretty(label):
                     return r'\(\Q(\sqrt[3]{%d})\)' % -q/2 + rs
 
     # Case 7: Arbitrary multi-quadratic fields
-    if is_power_of_2(d):
+    if ZZ(d).is_power_of(2):
         wnf = WebNumberField(label)
         subs = wnf.subfields()
-        num_quad_subs = sum(s.count('.')==2 for s in subs)
-        if num_quad_subs == d-1:
-            all_Ds = sorted(int(D) for D in Ds)
+        quad_labels = [s[0] for s in subs if s[0].count('.') == 2]
+        num_quad_subs = len(quad_labels)
+        #print("********test")
+        if num_quad_subs == int(d) - 1:
+            #print("*******TEST****")
+            all_Ds = [_quad_label_to_D(qlabel) for qlabel in quad_labels]
+            # Sort the Ds by absolute value (in case of tie, put positives first)
+            sorted_Ds = sorted(all_Ds, key = lambda x: (abs(x), -x))
             final_Ds = []
-            # Compute set of all primes dividing the Ds
-            primes = sorted({int(p) for d in ds for p in ZZ(abs(d)).prime_divisors()})
+            # Compute set of all primes dividing the Ds (include -1)
+            primes = sorted({int(p) for D in Ds for p in ZZ(abs(D)).prime_divisors()})
 
             # Keep track of prime exponents used so far
             all_prime_exponents = []
 
-            for D in Ds:
-                prime_exp = [D.valuation(p)%2 for p in primes]
+            for D in sorted_Ds:
+                # Convert D to a vector of prime exponents mod 2 (including sign)
+                prime_exp = [int(D < 0)]+[D.valuation(p) % 2 for p in primes]
                 tmp = matrix(GF(2), all_prime_exponents)
 
                 if prime_exp not in tmp.column_space():
@@ -320,9 +335,9 @@ def field_pretty(label):
                     final_Ds.append(D)
 
                     # Break out once rank is full
-                    if len(final_Ds) == d:
+                    if len(final_Ds) == int(d):
                         break
-            return r'\(\Q('+', '.join([str(D) for D in Ds])+')\)'
+            return r'\(\Q('+', '.join([_sqrt_symbol(D) for D in final_Ds])+r')\)'
 
 
     # Otherwise, return label
