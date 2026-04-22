@@ -1397,8 +1397,10 @@ def nf_string_to_label(FF):
     if F[0] == "q":
         # Strip away outer parenthesis
         Fstrip = _strip_matching_outer_parens(F[1:])
+        if len(Fstrip) == 0:
+            return "1.1.1.1"
 
-        # Check if input is quadratic field (given in the form Qsqrt5 or Q(sqrt5))
+        # Case 1: Check if input is quadratic field (given in the form Qsqrt5 or Q(sqrt5))
         if re.match(r'^(sqrt|root)[+-]?\d+$', Fstrip):
             try:
                 d = integer_squarefree_part(ZZ(str(Fstrip[4:])))
@@ -1416,7 +1418,7 @@ def nf_string_to_label(FF):
             s = 0 if D < 0 else 2
             return "2.%s.%s.1" % (s, str(absD))
 
-        # Check if cyclotomic field (or its maximal real subfield)
+        # Case 2: Check if cyclotomic field (or its maximal real subfield)
         if Fstrip[:4] == "zeta" and re.match(r"^qzeta\d+(\+|plus)?$", F.replace("_", "")):
             match_obj = re.match(r"^qzeta(\d+)(\+|plus)?$", F.replace("_", ""))
             if not match_obj:
@@ -1443,19 +1445,15 @@ def nf_string_to_label(FF):
             else:
                 raise SearchParsingError(f"{F} is not in the database.")
 
-        # Generic algebraic nickname parser for Q(...), Qsqrt..., Qcbrt..., etc.
-        qpart = _strip_matching_outer_parens(F[1:])
-        if len(qpart) == 0:
-            return "1.1.1.1"
-
-        # Support comma-separated generators Q(s1, s2, ..., sk).
+        # Case 3: Use generic algebraic nickname parser for Q(...), Qsqrt..., Qcbrt..., etc.
         from lmfdb.number_fields.number_field import poly_to_field_label
 
-        pieces = [piece.strip() for piece in qpart.split(",")]
+        # Support comma-separated generators Q(s1, s2, ..., sk).
+        pieces = [piece.strip() for piece in Fstrip.split(",")]
         if any(not piece for piece in pieces):
             raise SearchParsingError("Empty generator in comma-separated field nickname.")
+        
         from sage.rings.qqbar import number_field_elements_from_algebraics
-
         alphas = [_nf_string_to_qqbar(piece) for piece in pieces]
         K, _, _ = number_field_elements_from_algebraics(alphas)
         pol = PolynomialRing(QQ, 'x')(K.defining_polynomial())
