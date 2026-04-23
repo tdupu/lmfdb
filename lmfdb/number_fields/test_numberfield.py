@@ -78,8 +78,9 @@ class NumberFieldTest(LmfdbTest):
         self.check_args('/NumberField/1.1.1.1', r'\Q')
         self.check_args('/NumberField/2.0.4.1', r'\Q(\sqrt{-1})')
         self.check_args('/NumberField/4.4.2304.1', r'\Q(\sqrt{2}, \sqrt{3})')
-        self.check_args('/NumberField/6.0.16807.1', r'\Q(\zeta_7)')
-        self.check_args('/NumberField/3.3.49.1', r'\Q(\zeta_7^+)')
+        self.check_args('/NumberField/6.0.16807.1', r'\Q(\zeta_{7})')
+        self.check_args('/NumberField/3.3.49.1', r'\Q(\zeta_{7})^+')
+        self.check_args('/NumberField/4.2.2048.1', r'\Q(\sqrt[4]{2})')
 
     def test_signature_search(self):
         # Square brackets

@@ -4,7 +4,7 @@ import yaml
 
 from flask import url_for
 from sage.all import (
-    Set, ZZ, RR, pi, gcd, euler_phi, CyclotomicField, gap, RealField, sqrt, prod, matrix, GF,
+    Set, ZZ, RR, pi, gcd, euler_phi, CyclotomicField, gap, RealField, sqrt, prod, matrix, vector, GF,
     QQ, NumberField, QuadraticField, PolynomialRing, latex, pari, cached_function, Permutation)
 
 from lmfdb import db
@@ -294,20 +294,15 @@ def field_pretty(label):
                 g = gcd(A,B)
                 g //= g.squarefree_part()
                 A, B = A//g, B//g
+
                 # Return final pretty latex
+                print("****DEBUG****", label, "A,B=", A, B)
                 if A == 0:
-                    # Pure quartic field
-                    return r'\(\Q(\sqrt[4]{%d})\)' % D*ZZ(B)**2
+                    # Case: Pure quartic field
+                    return r'\(\Q(\sqrt[4]{%s})\)' % D*ZZ(B)**2
                 else:
-                    if B == 1:
-                        B = ""
-                    elif B == -1:
-                        B = "-"
-                    elif B > 0:
-                        B = "+"+str(B)
-                    else:
-                        B = str(B)
-                return r'\(\Q(\sqrt{%d %s %s})\)' % (A, B, _sqrt_symbol(D))
+                    B_str = "+" if B == 1 else "-" if B == -1 else f"{B:+d}"
+                    return r'\(\Q(\sqrt{%d %s %s})\)' % (A, B_str, _sqrt_symbol(D))
 
     # Case 5: Maximal real subfields of cyclotomic fields Q(\zeta_N)^+
     if label in rcycloinfo:
@@ -338,28 +333,35 @@ def field_pretty(label):
         k = ZZ(d).valuation(2)
         wnf = WebNumberField(label)
         all_subs = wnf.subfields()
-        quad_subs = [s[0] for s in all_subs if s[0].count('.') == 2]
+        print("all_subs:", all_subs)
+        quad_subs = [s[0] for s in all_subs if s[0].count(',') == 2]
         num_quad_subs = len(quad_subs)
-        #print("********test")
+        print("********test", num_quad_subs)
         if num_quad_subs == int(d) - 1:
-            #print("*******TEST****")
-            quad_labels = [str(wnf.from_coeffs(string2list(str(z[0]))).get_label()) for z in quad_subs]
+            print("*******TEST****")
+            quad_labels = [str(wnf.from_coeffs(string2list(str(z))).get_label()) for z in quad_subs]
+            print("quad labels:", quad_labels)
             all_Ds = [_quad_label_to_D(qlabel) for qlabel in quad_labels]
+            print("all Ds", all_Ds)
 
-            # Sort the Ds by absolute value (in case of tie, put positives first)
+            # Sort the Ds by absolute value (in case of tie, put positive Ds first)
             sorted_Ds = sorted(all_Ds, key = lambda x: (abs(x), -x))
+            print("sorted Ds:", sorted_Ds)
             final_Ds = []
 
             # Compute set of all primes dividing the Ds (include -1)
-            primes = sorted({int(p) for D in Ds for p in ZZ(abs(D)).prime_divisors()})
+            primes = sorted({int(p) for D in all_Ds for p in ZZ(abs(D)).prime_divisors()})
 
             # Keep track of prime exponents used so far
             all_prime_exponents = []
 
             for D in sorted_Ds:
+                print("Checking D=", D)
                 # Convert D to a vector of prime exponents mod 2 (including sign)
                 prime_exp = [int(D < 0)]+[D.valuation(p)%2 for p in primes]
-                if prime_exp not in matrix(GF(2), all_prime_exponents).row_space():
+                print("prime exp:", prime_exp)
+                if vector(prime_exp) not in matrix(GF(2), all_prime_exponents).row_space():
+                    print("Adding the D=", D, "to the gens :)")
                     all_prime_exponents.append(prime_exp)
                     final_Ds.append(D)
 
