@@ -293,7 +293,7 @@ def field_pretty(label):
                 # Divide out common square factors
                 g = gcd(A,B)
                 g //= g.squarefree_part()
-                A, B = A//g, B//g
+                A, B = ZZ(A//g), ZZ(B//g)
 
                 # Return final pretty latex
                 print("****DEBUG****", label, "A,B=", A, B)
