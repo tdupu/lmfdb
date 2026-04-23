@@ -296,10 +296,9 @@ def field_pretty(label):
                 A, B = ZZ(A//g), ZZ(B//g)
 
                 # Return final pretty latex
-                print("****DEBUG****", label, "A,B=", A, B)
                 if A == 0:
                     # Case: Pure quartic field
-                    return r'\(\Q(\sqrt[4]{%s})\)' % D*ZZ(B)**2
+                    return r'\(\Q(\sqrt[4]{%d})\)' % (D*B**2)
                 else:
                     B_str = "+" if B == 1 else "-" if B == -1 else f"{B:+d}"
                     return r'\(\Q(\sqrt{%d %s %s})\)' % (A, B_str, _sqrt_symbol(D))
@@ -317,22 +316,18 @@ def field_pretty(label):
             d, c, b, a = wnf.poly().coefficients(sparse=False)
             p = (3*a*c - b**2)/(3*a**2)
             q = (2*b**3 - 9*a*b*c + 27*a**2*d)/(27*a**3)
-            r = (q**2)/4 + (p**3)/27
-            print("***** DEBUG PQR:", p, q, r)
+            r = (q**2)/4 + (p**3)/27   # r is positive if disc negative
 
-            # A real root is (-q/2 +/- sqrt(r))^{1/3}
+            # A real root is (-q/2 + sqrt(r))^{1/3} + (-q/2 - sqrt(r))^{1/3}
             if r.is_square():
-                rs = sqrt(r)
-                
-                r1, r2 = -q/2 + rs, -q/2 - rs
+                # Construct r1, r2 such that r1 <= r2
+                r1, r2 = abs(27*(-q/2 + r.sqrt())), abs(27*(-q/2 - r.sqrt()))
+                r1, r2 = min(r1,r2), max(r1,r2)
 
-                print("*** CUBIC DEBUG  ***:", -q/2 + rs, -q/2 - rs)
                 # Check if (-q/2+sqrt(r))^{1/3} and (-q/2-sqrt(r))^{1/3} generate the same cubic field
-                #if gen_same(-q/2 + rs, -q/2 - rs):
-                if r1.is_zero() or r2.is_zero():
-                    D = r1+r2
-                    # Get cubefree part of D
-                    D = ZZ(prod([pp[0]**(pp[1]%3) for pp in D.factor()]))
+                if r1.is_zero() or (all([(pp[1]%3==0) for pp in (r1*r2).factor()])):
+                    D = r1 if r1 > 0 else r2
+                    D = ZZ(prod([pp[0]**(pp[1]%3) for pp in D.factor()]))  # Get cubefree part
                     # If square, can take square root
                     if D.is_square():
                         D = D.sqrt()
@@ -343,35 +338,26 @@ def field_pretty(label):
         k = ZZ(d).valuation(2)
         wnf = WebNumberField(label)
         all_subs = wnf.subfields()
-        print("all_subs:", all_subs)
         quad_subs = [s[0] for s in all_subs if s[0].count(',') == 2]
         num_quad_subs = len(quad_subs)
-        print("********test", num_quad_subs)
         if num_quad_subs == int(d) - 1:
-            print("*******TEST****")
             quad_labels = [str(wnf.from_coeffs(string2list(str(z))).get_label()) for z in quad_subs]
-            print("quad labels:", quad_labels)
             all_Ds = [_quad_label_to_D(qlabel) for qlabel in quad_labels]
-            print("all Ds", all_Ds)
 
             # Sort the Ds by absolute value (in case of tie, put positive Ds first)
             sorted_Ds = sorted(all_Ds, key = lambda x: (abs(x), -x))
-            print("sorted Ds:", sorted_Ds)
             final_Ds = []
 
-            # Compute set of all primes dividing the Ds (include -1)
+            # Compute set of all primes dividing the Ds
             primes = sorted({int(p) for D in all_Ds for p in ZZ(abs(D)).prime_divisors()})
 
             # Keep track of prime exponents used so far
             all_prime_exponents = []
 
             for D in sorted_Ds:
-                print("Checking D=", D)
                 # Convert D to a vector of prime exponents mod 2 (including sign)
                 prime_exp = [int(D < 0)]+[D.valuation(p)%2 for p in primes]
-                print("prime exp:", prime_exp)
                 if vector(prime_exp) not in matrix(GF(2), all_prime_exponents).row_space():
-                    print("Adding the D=", D, "to the gens :)")
                     all_prime_exponents.append(prime_exp)
                     final_Ds.append(D)
 
