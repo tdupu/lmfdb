@@ -4,7 +4,7 @@ import yaml
 
 from flask import url_for
 from sage.all import (
-    Set, ZZ, RR, pi, euler_phi, CyclotomicField, gap, RealField, sqrt, prod, matrix, GF,
+    Set, ZZ, RR, pi, gcd, euler_phi, CyclotomicField, gap, RealField, sqrt, prod, matrix, GF,
     QQ, NumberField, QuadraticField, PolynomialRing, latex, pari, cached_function, Permutation)
 
 from lmfdb import db
@@ -217,7 +217,7 @@ def field_pretty(label):
     Otherwise, simply returns back the label itself if unable to find a latex representation.
 
     Cases implemented:
-     - Rational field, Quadratic fields, Pure cubic fields, Imprimitive quartic fields,
+     - Rational field, quadratic fields, pure cubic fields, imprimitive quartic fields,
      - cyclotomic fields and their maximal real subfields, and general multi-quadratic fields.
     """
 
@@ -230,13 +230,13 @@ def field_pretty(label):
     # Converts LMFDB label for quadratic field K to the D in K = Q(sqrt(D))
     def _quad_label_to_D(quad_label):
         parts = str(quad_label).split('.')
-        DD = integer_squarefree_part(ZZ(parts[2]))  # Get squarefree part
-        DD *= (-1) ** (1 + int(parts[1]) // 2)      # Get correct sign
-        return ZZ(DD)
+        z = integer_squarefree_part(ZZ(parts[2]))  # Get squarefree part
+        z *= (-1) ** (1 + int(parts[1]) // 2)      # Get correct sign
+        return ZZ(z)
 
     # Converts D to the latexed form of sqrt(D)
-    def _sqrt_symbol(DD):
-        return 'i' if DD == -1 else r'\sqrt{%d}' % DD
+    def _sqrt_symbol(z):
+        return 'i' if z == -1 else r'\sqrt{%d}' % z
 
     # Case 2: Quadratic fields Q(\sqrt{D})
     if d == '2':
@@ -275,17 +275,39 @@ def field_pretty(label):
         if len(subs) == 1:
             quad_sub = wnf.from_coeffs(string2list(str(subs[0][0])))
             if not quad_sub._data is None:
-                # Factorise defining polynomial for K over Q(sqrt(D))
+                # Get unique quadratic subfield Q(sqrt(D))
                 quad_label = str(quad_sub.get_label())
                 D = _quad_label_to_D(quad_label)
-                Ksub = QuadraticField(D, 'b')
+                Ksub = QuadraticField(D, 'sqrtD')
+                sqrtD = Ksub._first_ngens(1)[0]
+                
+                # Factorise defining polynomial for K over Q(sqrt(D))
                 Rsub = PolynomialRing(Ksub, 'x')
                 relative_poly = Rsub(wnf.poly()).factor()[0][0]
 
                 # Can extract the first quadratic factor
                 rel_coeffs = relative_poly.coefficients(sparse=False)
-                ans = rel_coeffs[1]**2 - 4*rel_coeffs[0]*rel_coeffs[2]
-                return r'\(\Q(\sqrt{%s})\)' % latex(ans)
+                alpha = rel_coeffs[1]**2 - 4*rel_coeffs[0]*rel_coeffs[2]
+                A, B = sqrtD.coordinates_in_terms_of_powers()(alpha)
+
+                # Divide out common square factors
+                g = gcd(A,B)
+                g //= g.squarefree_part()
+                A, B = A//g, B//g
+                # Return final pretty latex
+                if A == 0:
+                    # Pure quartic field
+                    return r'\(\Q(\sqrt[4]{%d})\)' % D*ZZ(B)**2
+                else:
+                    if B == 1:
+                        B = ""
+                    elif B == -1:
+                        B = "-"
+                    elif B > 0:
+                        B = "+"+str(B)
+                    else:
+                        B = str(B)
+                return r'\(\Q(\sqrt{%d %s %s})\)' % (A, B, _sqrt_symbol(D))
 
     # Case 5: Maximal real subfields of cyclotomic fields Q(\zeta_N)^+
     if label in rcycloinfo:

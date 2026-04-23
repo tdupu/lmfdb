@@ -73,6 +73,14 @@ class NumberFieldTest(LmfdbTest):
     def test_statistics(self):
         self.check_args('/NumberField/stats', 'Class number')
 
+    def test_pretty_labels(self):
+        # Test "prettified" latex labels for number fields
+        self.check_args('/NumberField/1.1.1.1', r'\Q')
+        self.check_args('/NumberField/2.0.4.1', r'\Q(\sqrt{-1})')
+        self.check_args('/NumberField/4.4.2304.1', r'\Q(\sqrt{2}, \sqrt{3})')
+        self.check_args('/NumberField/6.0.16807.1', r'\Q(\zeta_7)')
+        self.check_args('/NumberField/3.3.49.1', r'\Q(\zeta_7^+)')
+
     def test_signature_search(self):
         # Square brackets
         self.check_args('/NumberField/?start=0&degree=6&signature=%5B0%2C3%5D&count=100', '6.0.61131.1')
