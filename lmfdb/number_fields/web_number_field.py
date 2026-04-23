@@ -318,15 +318,25 @@ def field_pretty(label):
             p = (3*a*c - b**2)/(3*a**2)
             q = (2*b**3 - 9*a*b*c + 27*a**2*d)/(27*a**3)
             r = (q**2)/4 + (p**3)/27
+            print("***** DEBUG PQR:", p, q, r)
 
             # A real root is (-q/2 +/- sqrt(r))^{1/3}
             if r.is_square():
                 rs = sqrt(r)
+                
+                r1, r2 = -q/2 + rs, -q/2 - rs
 
                 print("*** CUBIC DEBUG  ***:", -q/2 + rs, -q/2 - rs)
                 # Check if (-q/2+sqrt(r))^{1/3} and (-q/2-sqrt(r))^{1/3} generate the same cubic field
-                if gen_same(-q/2 + rs, -q/2 - rs):
-                    return r'\(\Q(\sqrt[3]{%d})\)' % -q/2 + rs
+                #if gen_same(-q/2 + rs, -q/2 - rs):
+                if r1.is_zero() or r2.is_zero():
+                    D = r1+r2
+                    # Get cubefree part of D
+                    D = ZZ(prod([pp[0]**(pp[1]%3) for pp in D.factor()]))
+                    # If square, can take square root
+                    if D.is_square():
+                        D = D.sqrt()
+                    return r'\(\Q(\sqrt[3]{%d})\)' % D
 
     # Case 7: General multi-quadratic fields: Q(\sqrt{D_1}, ..., \sqrt{D_k})
     if ZZ(d).is_power_of(2):
