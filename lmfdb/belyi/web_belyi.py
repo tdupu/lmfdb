@@ -15,7 +15,7 @@ from lmfdb import db
 # Belyi dessin images from belyi_images.txt
 ###############################################################################
 
-_belyi_images = None  
+_belyi_images = None
 
 def _load_belyi_images():
     global _belyi_images
@@ -61,6 +61,7 @@ def _crop_svg_bottom(svg, crop_height=660):
         svg
     )
     # 2. Update the SVG height attribute proportionally (original viewBox height = 792)
+
     def _new_height(m):
         try:
             orig = float(m.group(1))
