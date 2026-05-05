@@ -105,7 +105,7 @@ def multi_entry_jump_search(info, parse_entry, label_exists, index_endpoint, inp
     for i in range(len(entries)):
         # Check if doing the (i+1)-th entry will exceed the time limit
         if (i>0) and (time.monotonic() - start_timer > (i*time_limit)/(i+1)):
-            flash_warning("Search query timed out after parsing the first %s out of %s entries in the input. Only the first %s entries are included in the search results below.", i, len(entries), i)
+            flash_warning("Search query timed out after processing the first %s out of %s entries in the input box. Only the first %s entries are included in the search results below.", i, len(entries), i)
             break
 
         # Attempt to parse entry
