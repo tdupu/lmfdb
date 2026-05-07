@@ -226,7 +226,7 @@ def field_pretty(label):
     # Case 1: The rationals Q
     if d == '1':  # Q
         return r'\(\Q\)'
-    
+
     # Converts LMFDB label for quadratic field K to the D in K = Q(sqrt(D))
     def _quad_label_to_D(quad_label):
         parts = str(quad_label).split('.')
@@ -247,7 +247,7 @@ def field_pretty(label):
         if not is_fundamental_discriminant(D):
             return label
         return r'\(\Q(\sqrt{' + str(D if D % 4 else D/4) + r'}) \)'
-    
+
     # Case 3: Cyclotomic fields Q(\zeta_N)
     if label in cycloinfo:
         return r'\(\Q(\zeta_{%d})\)' % cycloinfo[label]
@@ -255,7 +255,7 @@ def field_pretty(label):
     # Case 4: Maximal real subfields of cyclotomic fields Q(\zeta_N)^+
     if label in rcycloinfo:
         return r'\(\Q(\zeta_{%d})^+\)' % rcycloinfo[label]
-    
+
     # Case 5: Imprimitive quartic fields
     if d == '4':
         wnf = WebNumberField(label)
@@ -274,7 +274,7 @@ def field_pretty(label):
                 labels_values = [z[0] * (-1)**(1 + z[1] / 2) for z in labels]
                 labels_str = [_sqrt_symbol(z) for z in labels_values]
                 return r'\(\Q(%s, %s)\)' % (labels_str[0], labels_str[1])
-            
+
         # Case 5b: Imprimitive quartic fields of type Q(\sqrt(A + B*\sqrt(D)))
         if len(subs) == 1:
             quad_sub = wnf.from_coeffs(string2list(str(subs[0][0])))
@@ -284,7 +284,7 @@ def field_pretty(label):
                 D = _quad_label_to_D(quad_label)
                 Ksub = QuadraticField(D, 'sqrtD')
                 sqrtD = Ksub.gen(0)
-                
+
                 # Factorise defining polynomial for K over Q(sqrt(D))
                 Rsub = PolynomialRing(Ksub, 'x')
                 relative_poly = Rsub(wnf.poly()).factor()[0][0]
@@ -325,7 +325,7 @@ def field_pretty(label):
                 r1, r2 = min(r1,r2), max(r1,r2)
 
                 # Check if (-q/2+sqrt(r))^{1/3} and (-q/2-sqrt(r))^{1/3} generate the same cubic field
-                if r1.is_zero() or (all([(pp[1]%3==0) for pp in (r1*r2).factor()])):
+                if r1.is_zero() or (all([(pp[1]%3 == 0) for pp in (r1*r2).factor()])):
                     D = r1 if r1 > 0 else r2
                     D = ZZ(prod([pp[0]**(pp[1]%3) for pp in D.factor()]))  # Get cubefree part
                     # If square, can take square root
@@ -345,7 +345,7 @@ def field_pretty(label):
             all_Ds = [_quad_label_to_D(qlabel) for qlabel in quad_labels]
 
             # Sort the Ds by absolute value (in case of tie, put positive Ds first)
-            sorted_Ds = sorted(all_Ds, key = lambda x: (abs(x), -x))
+            sorted_Ds = sorted(all_Ds, key=lambda x: (abs(x), -x))
             final_Ds = []
 
             # Compute set of all primes dividing the Ds
@@ -368,7 +368,7 @@ def field_pretty(label):
                     # Recompute row space
                     all_prime_exponents.append(prime_exp)
                     row_space = matrix(GF(2), all_prime_exponents).row_space()
-            
+
             return r'\(\Q('+', '.join([_sqrt_symbol(D) for D in final_Ds])+r')\)'
 
     # Otherwise, if no latex form found, just return the LMFDB label
