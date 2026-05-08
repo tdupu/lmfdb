@@ -69,7 +69,7 @@ def split_top_level_commas(text):
     return entries
 
 
-def multi_entry_jump_search(info, parse_entry, label_exists, index_endpoint, input_key="jump", labels_key="labels", 
+def multi_entry_jump_search(info, parse_entry, label_exists, index_endpoint, input_key="jump", labels_key="labels",
                             sep=split_top_level_commas, object_name="records", time_limit=20):
     """
     Generic handler for jump boxes that supports comma-separated input of various entries (labels/names/polynomials/equations etc.).
@@ -104,7 +104,7 @@ def multi_entry_jump_search(info, parse_entry, label_exists, index_endpoint, inp
     start_timer = time.monotonic()
     for i in range(len(entries)):
         # Check if doing the (i+1)-th entry will exceed the time limit
-        if (i>0) and (time.monotonic() - start_timer > (i*time_limit)/(i+1)):
+        if (i > 0) and (time.monotonic() - start_timer > (i*time_limit)/(i+1)):
             flash_warning("Search query timed out after processing the first %s out of %s entries in the input box. Only the first %s entries are included in the search results below.", i, len(entries), i)
             break
 
