@@ -40,3 +40,36 @@ scripts/groups/Make-images/images/*.png
 *.db
 .beads-credential-key
 .beads/proxieddb/
+
+# =============================================================================
+# Gas City infrastructure (added by gascity setup)
+# =============================================================================
+
+# Agent and orchestration runtime directories
+.repo.git/
+.agents/
+.codex/
+.gc/
+
+# Agent-to-agent inbox (communicate-with-other-agent skill)
+.claude/inbox/
+.claude/.agent-inbox*.md
+.claude/agent-chat.md
+
+# Credential-adjacent config
+config.json
+
+# Rig worker and support directories
+crew/
+polecats/
+mayor/
+refinery/
+witness/
+settings/
+
+# Gas City context files added to rig root
+AGENTS.md
+CLAUDE.md
+
+# Bead worktree directories (lm-XXX pattern)
+lm-*/
